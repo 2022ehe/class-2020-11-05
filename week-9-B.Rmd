@@ -33,11 +33,30 @@ week_9 <- kenya %>%
 
 * Write the math for this model.
 
+$$ \textit{reg_chg}_i = \beta_0 + \beta_1 local_i + \beta_2 poverty_{n,i} + \beta_3 p_n*t_i +\epsilon_i $$
+
 * Describe the population for which you are creating the model.
+
+The population is the Kenyan voting population of 2017. The sample from which
+this data was collected includes ~2 mil Kenyan voters.
 
 * Fit the  model and interpret the coefficients. Focus on the coefficient of the interaction term.
 
+```{r}
+fit_obj <- stan_glm(data = week_9,
+                    reg_chg ~ treatment + poverty_n + treatment*poverty_n,
+                    refresh = 0,)
 
+print(fit_obj, detail = FALSE, digits = 4)
+```
+
+Intercept: value when all the other values are 0 (so no treatment, median for poverty)
+treatmentlocal: effect of being treated on registration change
+poverty_n: slope for poverty when treatment is 0 (control)
+interaction term: slope for poverty when treatment is 1 (treated)
+
+This tells us that there is more correlation in treatment groups than control groups 
+since 0.0155 > 0.0025
 
 
 ## Scene 2
@@ -50,9 +69,37 @@ Write a sentence or two for each of these topics:
 
 * What would Wisdom suggest about the use of the `kenya` data to answer this question?
 
+Even though this data is from 2017, it's reasonable for this data to be applied
+in this 2021 scenario. However, if a person gets a SMS reminder in January 2021
+to go vote in an August 2022 election, the treatment is not likely to have an effect.
+We do not know when the treatment is applied before the 2017 election, so we 
+do not know if that could be a confounding factor.
+
 * Describe the ideal Preceptor Table.
 
+A row for each polling station (for all polling stations in Kenya) with data from both 
+control and treatment, and the corresponding reg_chg values. In addition, we 
+would like to have the 2021 election results
+
 * Graph the posterior probability distribution `reg_chg` if polling station 007/001 were to be assigned treatment in January.
+
+```{r sc2}
+new_obs <- tibble(treatment = "control", poverty_n = -1.60835093)
+
+pp <- posterior_predict(fit_obj, newdata = new_obs) %>%
+  as_tibble() #%>%
+  #mutate(all(as.numeric))
+
+ggplot(pp, aes(x = `1`)) + 
+  geom_histogram(aes(y = after_stat(count/sum(count))),
+                 bins = 100) + 
+  labs(title = "Posterior Predictive Distribution",
+       subtitle = "Registration change at polling station 007/001 under treatment",
+       x = "Registration Change",
+       y = "Probability") + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  scale_x_continuous(labels = scales::percent_format())
+```
 
 * Answer the President's question.
 
@@ -67,6 +114,19 @@ Write a sentence or two for each of these topics:
 *I care more about increasing registration in poor communities. For a community with poverty_n equal to 2, what would you expect the change in registration under treatment to be?*
 
 Using the model which you created in Scene 1, create a graphic of the posterior probability distribution of the causal effect of `local` treatment in polling stations which have +2 sigma poverty rates. Note that there are two ways to do this. First, we can use a parameter approach. This is what we did in class last week. Second, we can use `posterior_epred()`, which is generally easier since it does the math for us. Use the `posterior_epred()` approach. 
+
+```{r sc3}
+new_obs_2 <- tibble(treatment = c("local", "control"),
+                    poverty_n = 2)
+
+pe <- posterior_epred(fit_obj, newdata = new_obs_2) %>%
+  as_tibble() %>%
+  mutate(difference = `1` - `2`)
+
+ggplot(pe, aes(x = difference)) + 
+  geom_histogram(aes(y = after_stat(count/sum(count))),
+                 bins = 100)
+```
 
 
 
